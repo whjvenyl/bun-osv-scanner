@@ -8,6 +8,7 @@ import "./types.js";
 import { OSVClient } from "./client.js";
 import { VulnerabilityProcessor } from "./processor.js";
 import { logger } from "./logger.js";
+import { loadIgnoreRules, filterAdvisories } from "./ignore.js";
 
 /**
  * Bun Security Scanner for OSV.dev vulnerability detection
@@ -33,11 +34,55 @@ export const scanner: Bun.Security.Scanner = {
 				packages,
 			);
 
+			// Apply ignore rules before returning results
+			const rules = await loadIgnoreRules(process.cwd());
+			logger.info(`Loaded ${rules.length} ignore rules`);
+
+			// Filter advisories based on ignore rules
+			const { kept, ignored } = filterAdvisories(advisories, rules);
+
+			if (ignored.length > 0) {
+				logger.info(
+					`Ignored ${ignored.length} advisories via rules (.bun-osv.json, package.json bunOsv.ignore, env)`,
+				);
+			}
+
+			// If requested, still report ignored advisories but demoted to warnings
+			const showIgnored =
+				(process.env.BUN_OSV_SHOW_IGNORED ?? "1").toLowerCase() !== "false" &&
+				(process.env.BUN_OSV_SHOW_IGNORED ?? "1") !== "0";
+
+			// ANSI style for [ignored]: bold + red, fallback to plain if NO_COLOR
+			const supportsColor =
+				!!process.stdout?.isTTY &&
+				(process.env.NO_COLOR === undefined ||
+					process.env.NO_COLOR === "0" ||
+					process.env.NO_COLOR === "false");
+			const ignoredTag = supportsColor
+				? "\x1b[1m\x1b[31m[ignored]\x1b[0m"
+				: "[ignored]";
+
+			let output = kept as any[];
+
+			if (showIgnored && ignored.length > 0) {
+				const demoted = ignored.map((a: any) => ({
+					...a,
+					level: "warn", // ensure it won't block install
+					description: `${a.description ?? ""} ${ignoredTag}`.trim(),
+				}));
+				output = [...kept, ...demoted];
+			}
+
 			logger.info(
-				`OSV scan completed: ${advisories.length} advisories found for ${packages.length} packages`,
+				`OSV scan completed: ${output.length} advisories reported (from ${advisories.length} total) for ${packages.length} packages` +
+					(ignored.length && showIgnored
+						? ` (${ignored.length} ignored shown as warnings)`
+						: ""),
 			);
 
-			return advisories;
+			// Return an empty array if there are no advisories!
+			// Only return non-ignored advisories so installs proceed when everything is ignored.
+			return output;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			logger.error("OSV scanner encountered an unexpected error", {
