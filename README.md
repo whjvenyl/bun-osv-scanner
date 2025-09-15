@@ -33,6 +33,7 @@ A production-grade security scanner for [Bun](https://bun.sh/) that integrates w
 - **Structured Logging**: Configurable logging levels with contextual information
 - **Precise Matching**: Accurate vulnerability-to-package version matching
 - **Configurable**: Environment variable configuration for all settings
+- **Allowlist (Ignore Rules)**: Ignore by advisory ID (CVE/GHSA/OSV) or package (optionally with version range); ignored issues are demoted to warnings and annotated with bold red “[ignored]”
 - **Well Tested**: Comprehensive test suite with edge case coverage
 
 ## Installation
@@ -60,18 +61,61 @@ scanner = "bun-osv-scanner"
 The scanner can be configured via environment variables:
 
 ```bash
-# Logging level (debug, info, warn, error)
+# Core scanner config
 export OSV_LOG_LEVEL=info
-
-# Custom OSV API base URL (optional)
 export OSV_API_BASE_URL=https://api.osv.dev/v1
-
-# Request timeout in milliseconds (default: 30000)
 export OSV_TIMEOUT_MS=30000
-
-# Disable batch queries (default: false)
 export OSV_DISABLE_BATCH=false
+
+# Ignore / allowlist config
+# Ignore by package (name or name@range)
+export BUN_OSV_IGNORE_PKG="ip@* lodash@<4.17.21"
+# Ignore by advisory id(s)
+export BUN_OSV_IGNORE_ADVISORY="CVE-2024-29415 GHSA-xxxx-xxxx-xxxx"
+# Load extra rules from a file (JSON with { "ignore": [...] } or an array)
+export BUN_OSV_IGNORE_FILE="$PWD/security/ignore.json"
+# Show ignored advisories as warnings (1/true to show, 0/false to hide). Default: 1
+export BUN_OSV_SHOW_IGNORED=1
 ```
+
+### 3. Ignore Rules (Allowlist)
+
+You can allow specific vulnerabilities or packages while still seeing them in the output.
+
+- Matches advisories by ID (CVE/GHSA/OSV) or by package name (optionally with a semver range).
+- Ignored advisories won’t block installs. By default they’re shown as warnings, annotated with a bold red “[ignored]”.
+- Expiring rules are supported via an ISO date (rules past `expires` are ignored).
+- Rules are merged from (in order): `.bun-osv.json`, `package.json` → `bunOsv.ignore`, `BUN_OSV_IGNORE_FILE`, and environment variables.
+
+Project-level file (`.bun-osv.json`):
+
+```json
+{
+  "ignore": [
+    { "advisory": "CVE-2024-29415", "reason": "accepted risk", "expires": "2026-01-01" },
+    { "package": "ip", "range": "*", "reason": "legacy env" },
+    { "package": "lodash", "range": "<4.17.21", "reason": "pending upgrade" }
+  ]
+}
+```
+
+`package.json` alternative:
+
+```json
+{
+  "name": "your-project",
+  "bunOsv": {
+    "ignore": [
+      { "package": "left-pad", "range": "*" }
+    ]
+  }
+}
+```
+
+Notes on matching:
+- Advisory IDs are matched across known fields and within URLs/references (e.g., an NVD link containing “CVE-2024-29415”).
+- Package names are case-insensitive; if version information isn’t available, name-only rules still apply.
+- Coloring respects `NO_COLOR`. Without it, “[ignored]” is bold red.
 
 ## How It Works
 
@@ -83,6 +127,7 @@ export OSV_DISABLE_BATCH=false
 4. **Vulnerability Matching**: Precisely matches vulnerabilities to installed versions
 5. **Severity Assessment**: Analyzes CVSS scores and database-specific severity
 6. **Advisory Generation**: Creates actionable security advisories
+7. **Ignore Rule Application**: Filters advisories using allowlist rules; ignored ones are demoted to warning level and annotated “[ignored]” (if `BUN_OSV_SHOW_IGNORED=1`)
 
 ### Advisory Levels
 
@@ -101,6 +146,9 @@ The scanner generates two types of security advisories:
 - **TTY**: Interactive choice presented
 - **Non-TTY**: Installation automatically cancelled
 - **Examples**: Denial of service, information disclosure, deprecation warnings
+
+Ignored advisories
+- When a rule matches, the advisory is treated as a warning and annotated “[ignored]” so it remains visible without blocking the install (behavior controlled by `BUN_OSV_SHOW_IGNORED`).
 
 ### Error Handling Philosophy
 
@@ -132,6 +180,22 @@ OSV_LOG_LEVEL=debug bun install
 # Test with a known vulnerable package
 bun add event-stream@3.3.6
 # -> Should trigger security advisory
+```
+
+### Ignore Examples
+
+```bash
+# Ignore a specific advisory (CVE)
+export BUN_OSV_IGNORE_ADVISORY="CVE-2024-29415"
+bun install
+
+# Ignore a package regardless of version
+export BUN_OSV_IGNORE_PKG="ip@*"
+bun install
+
+# Hide ignored advisories completely (instead of showing as warnings)
+export BUN_OSV_SHOW_IGNORED=0
+bun install
 ```
 
 ### Configuration Examples
@@ -228,12 +292,16 @@ For complete OSV.dev API documentation, visit: https://google.github.io/osv.dev/
 
 ### Configuration Reference
 
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `OSV_LOG_LEVEL` | `info` | Logging level: debug, info, warn, error |
-| `OSV_API_BASE_URL` | `https://api.osv.dev/v1` | OSV API base URL |
-| `OSV_TIMEOUT_MS` | `30000` | Request timeout in milliseconds |
-| `OSV_DISABLE_BATCH` | `false` | Disable batch queries (use individual queries) |
+| Environment Variable         | Default                 | Description                                                                 |
+|-----------------------------|-------------------------|-----------------------------------------------------------------------------|
+| `OSV_LOG_LEVEL`             | `info`                  | Logging level: debug, info, warn, error                                     |
+| `OSV_API_BASE_URL`          | `https://api.osv.dev/v1`| OSV API base URL                                                            |
+| `OSV_TIMEOUT_MS`            | `30000`                 | Request timeout in milliseconds                                             |
+| `OSV_DISABLE_BATCH`         | `false`                 | Disable batch queries (use individual queries)                              |
+| `BUN_OSV_IGNORE_PKG`        | —                       | Space/comma-separated package tokens to ignore (e.g., `ip@* lodash@<4.17.21`) |
+| `BUN_OSV_IGNORE_ADVISORY`   | —                       | Space/comma-separated advisory IDs to ignore (CVE-/GHSA-/OSV-)              |
+| `BUN_OSV_IGNORE_FILE`       | —                       | Path to JSON file containing ignore rules                                   |
+| `BUN_OSV_SHOW_IGNORED`      | `1`                     | If `1/true`, show ignored advisories as warnings; if `0/false`, hide them   |
 
 ## Troubleshooting
 
@@ -243,6 +311,13 @@ For complete OSV.dev API documentation, visit: https://google.github.io/osv.dev/
 - Verify `bunfig.toml` configuration
 - Check that the package is installed as a dev dependency
 - Enable debug logging: `OSV_LOG_LEVEL=debug bun install`
+
+**Ignore rule doesn’t apply?**
+- Ensure the rule file is in the project being installed (or set `BUN_OSV_IGNORE_FILE`).
+- Enable debug logs to see “Loaded N ignore rules”.
+- Match by CVE/GHSA if the advisory uses a URL (e.g., NVD link). Example: `{ "advisory": "CVE-2024-29415" }`.
+- Package rules are case-insensitive; `"range": "*"` ignores all versions.
+- Check `expires` hasn’t passed.
 
 **Network timeouts?**
 - Increase timeout: `OSV_TIMEOUT_MS=60000`
@@ -265,7 +340,7 @@ OSV_LOG_LEVEL=debug bun install your-package
 This shows:
 - Package deduplication statistics
 - API request/response details  
-- Vulnerability matching decisions
+- Vulnerability matching decisions (including ignore-rule matches)
 - Performance timing information
 
 ## License
