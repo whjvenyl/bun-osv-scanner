@@ -1,5 +1,5 @@
 <!--
-Copyright (c) 2025 maloma7. All rights reserved.
+original Copyright (c) 2025 maloma7. All rights reserved.
 SPDX-License-Identifier: MIT
 -->
 
@@ -267,7 +267,7 @@ bun run lint
 ### Building from Source
 
 ```bash
-git clone https://github.com/maloma7/bun-osv-scanner.git
+git clone https://github.com/whjvenyl/bun-osv-scanner.git
 cd bun-osv-scanner
 bun install
 bun run build
@@ -275,7 +275,7 @@ bun run build
 
 ### Contributing
 
-We do not accept pull requests as this package is actively maintained. However, we appreciate if developers report bugs or suggest features by [opening an issue](https://github.com/maloma7/bun-osv-scanner/issues/new).
+We do not accept pull requests as this package is actively maintained. However, we appreciate if developers report bugs or suggest features by [opening an issue](https://github.com/whjvenyl/bun-osv-scanner/issues/new).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
 

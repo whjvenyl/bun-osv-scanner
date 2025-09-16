@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025 maloma7. All rights reserved.
+ * Copyright (c) 2025 maloma7 and whjvenyl. All rights reserved.
  * SPDX-License-Identifier: MIT
  */
 

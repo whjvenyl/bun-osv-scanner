@@ -1,13 +1,13 @@
 {
-	"name": "bun-osv-scanner",
+	"name": "bun-osv-scanner-extended",
 	"version": "1.0.0",
 	"description": "OSV vulnerability scanner for Bun projects",
-	"author": "maloma7",
+	"author": "whjvenyl",
 	"license": "MIT",
 	"type": "module",
 	"types": "./src/index.ts",
 	"exports": "./src/index.ts",
-	"packageManager": "bun@1.2.21",
+	"packageManager": "bun@1.2.22",
 	"engines": {
 		"bun": ">=1.0.0"
 	},
@@ -34,14 +34,10 @@
 	"homepage": "https://bun-osv-scanner.com",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/maloma7/bun-osv-scanner"
+		"url": "https://github.com/whjvenyl/bun-osv-scanner"
 	},
 	"bugs": {
-		"url": "https://github.com/maloma7/bun-osv-scanner/issues"
-	},
-	"funding": {
-		"type": "github",
-		"url": "https://github.com/sponsors/maloma7"
+		"url": "https://github.com/whjvenyl/bun-osv-scanner/issues"
 	},
 	"scripts": {
 		"dev": "bun run typecheck --watch",

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2025 whjvenyl. All rights reserved.
+ * SPDX-License-Identifier: MIT
+ */
+
 import fs from "node:fs";
 import path from "node:path";
 import semver from "semver";
